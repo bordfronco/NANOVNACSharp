@@ -1,0 +1,23 @@
+## Visual Studio / .NET
+.vs/
+bin/
+obj/
+packages/
+*.user
+*.suo
+*.cache
+*.rsuser
+*.userosscache
+*.sln.docstates
+*.userprefs
+[Dd]ebug/
+[Rr]elease/
+
+## NuGet (restored on build)
+*.nupkg
+project.lock.json
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
