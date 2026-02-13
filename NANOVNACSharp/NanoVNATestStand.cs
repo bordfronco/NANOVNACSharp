@@ -37,10 +37,17 @@ namespace NANOVNACSharp
         /// <summary>
         /// Auto-detect the NanoVNA H4 COM port.
         /// </summary>
-        /// <returns>The detected COM port name (e.g. "COM3").</returns>
+        /// <returns>The detected COM port name (e.g. "COM3"), or "DEVICE_NOT_FOUND" if no device is detected.</returns>
         public string DetectPort()
         {
-            return PortDetector.GetPort();
+            try
+            {
+                return PortDetector.GetPort();
+            }
+            catch
+            {
+                return "DEVICE_NOT_FOUND";
+            }
         }
 
         /// <summary>
@@ -48,10 +55,17 @@ namespace NANOVNACSharp
         /// If <paramref name="comPort"/> is null or empty, auto-detects the port.
         /// </summary>
         /// <param name="comPort">COM port name, or null for auto-detect.</param>
+        /// <summary>
+        /// Last error message from a failed operation, or empty string if no error.
+        /// </summary>
+        public string LastError { get; private set; } = "";
+
         public void Connect(string comPort = null)
         {
             lock (_lock)
             {
+                LastError = "";
+
                 if (_nv != null)
                     Disconnect();
 
@@ -77,7 +91,10 @@ namespace NANOVNACSharp
                     }
                 }
                 if (lastEx != null)
-                    throw lastEx;
+                {
+                    LastError = "DEVICE_NOT_FOUND: " + lastEx.Message;
+                    return;
+                }
 
                 // Warm-up: trigger a full sweep and discard the results so the
                 // device has completed at least one sweep cycle before any real
