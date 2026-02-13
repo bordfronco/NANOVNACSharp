@@ -372,6 +372,57 @@ namespace NANOVNACSharp
             return LastMeasurement != null ? LastMeasurement.ImpedanceMag : new double[0];
         }
 
+        /// <summary>
+        /// Diagnostic method that returns a summary of the last measurement as a string.
+        /// Useful for debugging in TestStand when array returns are hard to inspect.
+        /// </summary>
+        /// <returns>Multi-line summary string with array lengths and first 3 values of each.</returns>
+        public string GetDiagnostics()
+        {
+            if (LastMeasurement == null)
+                return "NO MEASUREMENT DATA";
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("=== Last Measurement Diagnostics ===");
+            sb.AppendLine("Device: " + (LastMeasurement.Device ?? "null"));
+            sb.AppendLine("Port: " + LastMeasurement.Port);
+            sb.AppendLine("Z0: " + LastMeasurement.Z0);
+
+            Action<string, double[]> dump = (name, arr) =>
+            {
+                if (arr == null)
+                {
+                    sb.AppendLine(name + ": null");
+                    return;
+                }
+                sb.Append(name + " [" + arr.Length + "]: ");
+                for (int i = 0; i < Math.Min(3, arr.Length); i++)
+                {
+                    if (i > 0) sb.Append(", ");
+                    sb.Append(arr[i].ToString("F4"));
+                }
+                if (arr.Length > 3) sb.Append(" ...");
+                sb.AppendLine();
+            };
+
+            dump("Frequencies", LastMeasurement.Frequencies);
+            dump("VSWR", LastMeasurement.VSWR);
+            dump("SMagDb", LastMeasurement.SMagDb);
+            dump("ImpedanceReal", LastMeasurement.ImpedanceReal);
+            dump("ImpedanceImag", LastMeasurement.ImpedanceImag);
+            dump("ImpedanceMag", LastMeasurement.ImpedanceMag);
+            dump("SReal", LastMeasurement.SReal);
+            dump("SImag", LastMeasurement.SImag);
+
+            if (LastEvaluation != null)
+            {
+                sb.AppendLine("Result: " + LastEvaluation.Result);
+                sb.AppendLine("ExitCode: " + LastEvaluation.ExitCode);
+            }
+
+            return sb.ToString();
+        }
+
         // ------------------------------------------------------------------
         // Private helpers
         // ------------------------------------------------------------------
