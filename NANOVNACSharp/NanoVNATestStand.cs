@@ -61,6 +61,25 @@ namespace NANOVNACSharp
         }
 
         /// <summary>
+        /// Connect to the device and return a status string for diagnostics.
+        /// Returns "OK" on success or the exception message on failure.
+        /// </summary>
+        /// <param name="comPort">COM port name, or null for auto-detect.</param>
+        /// <returns>"OK" on success, or the error message on failure.</returns>
+        public string ConnectWithStatus(string comPort = null)
+        {
+            try
+            {
+                Connect(comPort);
+                return "OK";
+            }
+            catch (Exception ex)
+            {
+                return ex.GetType().Name + ": " + ex.Message;
+            }
+        }
+
+        /// <summary>
         /// Disconnect from the NanoVNA H4.
         /// </summary>
         public void Disconnect()
