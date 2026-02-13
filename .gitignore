@@ -1,6 +1,5 @@
 ## Visual Studio / .NET
 .vs/
-bin/
 obj/
 packages/
 *.user
@@ -10,8 +9,7 @@ packages/
 *.userosscache
 *.sln.docstates
 *.userprefs
-[Dd]ebug/
-[Rr]elease/
+*.pdb
 
 ## NuGet (restored on build)
 *.nupkg
