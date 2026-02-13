@@ -76,9 +76,15 @@ namespace NANOVNACSharp
             if (_serial != null)
             {
                 if (_serial.IsOpen)
+                {
+                    try { _serial.DiscardInBuffer(); } catch { }
+                    try { _serial.DiscardOutBuffer(); } catch { }
                     _serial.Close();
+                }
                 _serial.Dispose();
                 _serial = null;
+                // Allow USB driver time to fully release the port
+                System.Threading.Thread.Sleep(200);
             }
         }
 
