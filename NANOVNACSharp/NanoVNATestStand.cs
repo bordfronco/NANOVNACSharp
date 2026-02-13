@@ -79,11 +79,18 @@ namespace NANOVNACSharp
                 if (lastEx != null)
                     throw lastEx;
 
-                // Warm-up: discard first data read so the device has time to
-                // complete its initial sweep after being plugged in.
+                // Warm-up: trigger a full sweep and discard the results so the
+                // device has completed at least one sweep cycle before any real
+                // measurement. On first plug-in the device buffer may be empty
+                // or stale, causing short/corrupt data reads.
                 try
                 {
+                    _nv.SetSweep(1e6, 900e6);
+                    System.Threading.Thread.Sleep(500);
                     _nv.FetchFrequencies();
+                    _nv.Data(0);
+                    // Second read to ensure device is fully settled
+                    System.Threading.Thread.Sleep(500);
                     _nv.Data(0);
                 }
                 catch { /* ignore warm-up errors */ }
