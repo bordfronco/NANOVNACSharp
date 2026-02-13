@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO.Ports;
 using System.Management;
 using System.Text.RegularExpressions;
@@ -45,6 +46,35 @@ namespace NANOVNACSharp
 
             throw new InvalidOperationException(
                 "NanoVNA H4 device not found (VID=0x0483, PID=0x5740).");
+        }
+
+        /// <summary>
+        /// Detect all connected NanoVNA H4 devices by USB VID/PID.
+        /// </summary>
+        /// <returns>Array of COM port names for all connected NanoVNA devices.</returns>
+        public static string[] GetAllPorts()
+        {
+            string vidPid = string.Format("VID_{0:X4}&PID_{1:X4}",
+                Constants.VID, Constants.PID);
+
+            var ports = new List<string>();
+
+            using (var searcher = new ManagementObjectSearcher(
+                "SELECT Name, PNPDeviceID FROM Win32_PnPEntity WHERE PNPDeviceID LIKE '%" + vidPid + "%'"))
+            {
+                foreach (ManagementObject obj in searcher.Get())
+                {
+                    string name = obj["Name"] as string;
+                    if (name != null)
+                    {
+                        Match match = Regex.Match(name, @"\(COM(\d+)\)");
+                        if (match.Success)
+                            ports.Add("COM" + match.Groups[1].Value);
+                    }
+                }
+            }
+
+            return ports.ToArray();
         }
 
         /// <summary>

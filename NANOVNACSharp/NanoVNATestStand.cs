@@ -35,7 +35,7 @@ namespace NANOVNACSharp
         }
 
         /// <summary>
-        /// Auto-detect the NanoVNA H4 COM port.
+        /// Auto-detect the first NanoVNA H4 COM port.
         /// </summary>
         /// <returns>The detected COM port name (e.g. "COM3"), or "DEVICE_NOT_FOUND" if no device is detected.</returns>
         public string DetectPort()
@@ -47,6 +47,22 @@ namespace NANOVNACSharp
             catch
             {
                 return "DEVICE_NOT_FOUND";
+            }
+        }
+
+        /// <summary>
+        /// Detect all connected NanoVNA H4 devices.
+        /// </summary>
+        /// <returns>Array of COM port names (e.g. ["COM3", "COM5"]), or empty array if none found.</returns>
+        public string[] DetectAllPorts()
+        {
+            try
+            {
+                return PortDetector.GetAllPorts();
+            }
+            catch
+            {
+                return new string[0];
             }
         }
 
