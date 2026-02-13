@@ -455,8 +455,19 @@ namespace NANOVNACSharp
             else
             {
                 _nv.SetSweep(startHz, stopHz);
+                // Wait for device to complete sweep after reconfiguring
+                System.Threading.Thread.Sleep(200);
                 _nv.FetchFrequencies();
                 sData = _nv.Data(port);
+
+                // Retry once if device returned incomplete data (happens on
+                // first run after plugging in, before initial sweep finishes)
+                if (sData.Length != points)
+                {
+                    System.Threading.Thread.Sleep(500);
+                    sData = _nv.Data(port);
+                }
+
                 _nv.FetchFrequencies();
             }
 
