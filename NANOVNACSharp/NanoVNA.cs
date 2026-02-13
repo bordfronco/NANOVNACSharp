@@ -84,7 +84,7 @@ namespace NANOVNACSharp
                 _serial.Dispose();
                 _serial = null;
                 // Allow USB driver time to fully release the port
-                System.Threading.Thread.Sleep(200);
+                System.Threading.Thread.Sleep(1000);
             }
         }
 

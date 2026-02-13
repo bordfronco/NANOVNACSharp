@@ -55,8 +55,29 @@ namespace NANOVNACSharp
                 if (_nv != null)
                     Disconnect();
 
-                _nv = new NanoVNA(string.IsNullOrEmpty(comPort) ? null : comPort);
-                _nv.Open();
+                string port = string.IsNullOrEmpty(comPort) ? null : comPort;
+
+                // Retry up to 3 times with increasing delay if the port
+                // hasn't been fully released by the USB driver yet.
+                Exception lastEx = null;
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    try
+                    {
+                        _nv = new NanoVNA(port);
+                        _nv.Open();
+                        lastEx = null;
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        lastEx = ex;
+                        _nv = null;
+                        System.Threading.Thread.Sleep(1000);
+                    }
+                }
+                if (lastEx != null)
+                    throw lastEx;
 
                 // Warm-up: discard first data read so the device has time to
                 // complete its initial sweep after being plugged in.
