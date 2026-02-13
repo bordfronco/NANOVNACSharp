@@ -145,7 +145,7 @@ namespace NANOVNACSharp
                 if (maxVswrParam.HasValue || minRlParam.HasValue || maxIlParam.HasValue)
                 {
                     LastEvaluation = ThresholdEvaluator.Evaluate(
-                        _nv.Frequencies, sData,
+                        LastMeasurement.Frequencies, sData,
                         maxVswrParam, minRlParam, maxIlParam,
                         freqStart, freqStop);
                 }
@@ -491,9 +491,18 @@ namespace NANOVNACSharp
                 zMag[i] = impedance[i].Magnitude;
             }
 
+            // Use _nv.Frequencies if it matches sData length, otherwise
+            // regenerate from the sweep range to guarantee array alignment.
+            double[] freqs = _nv.Frequencies;
+            if (freqs == null || freqs.Length != sData.Length)
+                freqs = MathHelpers.Linspace(
+                    _nv.Frequencies != null && _nv.Frequencies.Length > 0 ? _nv.Frequencies[0] : 1e6,
+                    _nv.Frequencies != null && _nv.Frequencies.Length > 0 ? _nv.Frequencies[_nv.Frequencies.Length - 1] : 900e6,
+                    sData.Length);
+
             return new MeasurementData
             {
-                Frequencies = _nv.Frequencies,
+                Frequencies = freqs,
                 SData = sData,
                 SReal = sReal,
                 SImag = sImag,
