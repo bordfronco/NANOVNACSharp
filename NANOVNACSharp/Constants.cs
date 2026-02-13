@@ -27,7 +27,7 @@ namespace NANOVNACSharp
         public const double DEFAULT_START_HZ = 1e6;
 
         /// <summary>Default sweep stop frequency in Hz.</summary>
-        public const double DEFAULT_STOP_HZ = 900e6;
+        public const double DEFAULT_STOP_HZ = 1.5e9;
 
         /// <summary>Maximum points per hardware scan segment.</summary>
         public const int SEGMENT_LENGTH = 101;

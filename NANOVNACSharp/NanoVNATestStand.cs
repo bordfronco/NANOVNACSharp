@@ -85,7 +85,7 @@ namespace NANOVNACSharp
                 // or stale, causing short/corrupt data reads.
                 try
                 {
-                    _nv.SetSweep(1e6, 900e6);
+                    _nv.SetSweep(1e6, 1.5e9);
                     System.Threading.Thread.Sleep(500);
                     _nv.FetchFrequencies();
                     _nv.Data(0);
@@ -152,7 +152,7 @@ namespace NANOVNACSharp
         /// <returns>True if all thresholds pass (or no thresholds set), false otherwise.</returns>
         public bool MeasureAndEvaluate(
             double startHz = 1e6,
-            double stopHz = 900e6,
+            double stopHz = 1.5e9,
             int points = 101,
             int port = 0,
             double maxVSWR = 0,
@@ -216,7 +216,7 @@ namespace NANOVNACSharp
         /// <returns>JSON string with measurement data and evaluation results.</returns>
         public string MeasureToJson(
             double startHz = 1e6,
-            double stopHz = 900e6,
+            double stopHz = 1.5e9,
             int points = 101,
             int port = 0,
             double maxVSWR = 0,
@@ -244,7 +244,7 @@ namespace NANOVNACSharp
         public void MeasureToCsv(
             string filePath,
             double startHz = 1e6,
-            double stopHz = 900e6,
+            double stopHz = 1.5e9,
             int points = 101,
             int port = 0,
             double z0 = 50.0)
@@ -271,7 +271,7 @@ namespace NANOVNACSharp
         public void MeasureToTouchstone(
             string filePath,
             double startHz = 1e6,
-            double stopHz = 900e6,
+            double stopHz = 1.5e9,
             int points = 101,
             int port = 0,
             double z0 = 50.0)
@@ -545,7 +545,7 @@ namespace NANOVNACSharp
             if (freqs == null || freqs.Length != sData.Length)
                 freqs = MathHelpers.Linspace(
                     _nv.Frequencies != null && _nv.Frequencies.Length > 0 ? _nv.Frequencies[0] : 1e6,
-                    _nv.Frequencies != null && _nv.Frequencies.Length > 0 ? _nv.Frequencies[_nv.Frequencies.Length - 1] : 900e6,
+                    _nv.Frequencies != null && _nv.Frequencies.Length > 0 ? _nv.Frequencies[_nv.Frequencies.Length - 1] : 1.5e9,
                     sData.Length);
 
             return new MeasurementData
