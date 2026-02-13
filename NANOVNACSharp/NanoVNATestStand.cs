@@ -57,6 +57,15 @@ namespace NANOVNACSharp
 
                 _nv = new NanoVNA(string.IsNullOrEmpty(comPort) ? null : comPort);
                 _nv.Open();
+
+                // Warm-up: discard first data read so the device has time to
+                // complete its initial sweep after being plugged in.
+                try
+                {
+                    _nv.FetchFrequencies();
+                    _nv.Data(0);
+                }
+                catch { /* ignore warm-up errors */ }
             }
         }
 
