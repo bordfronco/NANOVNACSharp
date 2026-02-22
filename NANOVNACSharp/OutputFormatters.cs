@@ -93,6 +93,7 @@ namespace NANOVNACSharp
         /// <param name="measurement">Complete measurement data.</param>
         public static void WriteCsv(string filePath, MeasurementData measurement)
         {
+            filePath = ValidateFilePath(filePath);
             using (StreamWriter writer = new StreamWriter(filePath))
             {
                 writer.WriteLine("# NanoVNA H4 Measurement Data");
@@ -130,6 +131,18 @@ namespace NANOVNACSharp
         /// <summary>
         /// Convert a <see cref="ThresholdResult"/> to a JSON object.
         /// </summary>
+        internal static string ValidateFilePath(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                throw new ArgumentException("File path cannot be null or empty.", "filePath");
+            if (filePath.IndexOf('\0') >= 0)
+                throw new ArgumentException("File path contains invalid characters.", "filePath");
+            string fullPath = Path.GetFullPath(filePath);
+            if (fullPath.StartsWith(@"\\"))
+                throw new ArgumentException("UNC paths are not permitted.", "filePath");
+            return fullPath;
+        }
+
         private static JObject ThresholdToJson(ThresholdResult tr)
         {
             return new JObject

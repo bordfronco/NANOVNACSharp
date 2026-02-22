@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO.Ports;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 
@@ -63,6 +64,8 @@ namespace NANOVNACSharp
             if (_serial == null)
             {
                 _serial = new SerialPort(Dev);
+                _serial.ReadTimeout = 5000;
+                _serial.WriteTimeout = 5000;
                 _serial.Open();
             }
         }
@@ -77,8 +80,8 @@ namespace NANOVNACSharp
             {
                 if (_serial.IsOpen)
                 {
-                    try { _serial.DiscardInBuffer(); } catch { }
-                    try { _serial.DiscardOutBuffer(); } catch { }
+                    try { _serial.DiscardInBuffer(); } catch (Exception) { }
+                    try { _serial.DiscardOutBuffer(); } catch (Exception) { }
                     _serial.Close();
                 }
                 _serial.Dispose();
@@ -117,34 +120,42 @@ namespace NANOVNACSharp
             StringBuilder result = new StringBuilder();
             StringBuilder line = new StringBuilder();
 
-            while (true)
+            try
             {
-                int b = _serial.ReadByte();
-                if (b < 0)
-                    break;
-
-                char c = (char)b;
-
-                if (c == '\r')
-                    continue; // ignore CR
-
-                line.Append(c);
-
-                if (c == '\n')
+                while (true)
                 {
-                    result.Append(line.ToString());
-                    line.Clear();
-                    continue;
-                }
+                    int b = _serial.ReadByte();
+                    if (b < 0)
+                        break;
 
-                if (line.Length >= 3 &&
-                    line[line.Length - 3] == 'c' &&
-                    line[line.Length - 2] == 'h' &&
-                    line[line.Length - 1] == '>')
-                {
-                    // Stop on prompt
-                    break;
+                    char c = (char)b;
+
+                    if (c == '\r')
+                        continue; // ignore CR
+
+                    line.Append(c);
+
+                    if (c == '\n')
+                    {
+                        result.Append(line.ToString());
+                        line.Clear();
+                        continue;
+                    }
+
+                    if (line.Length >= 3 &&
+                        line[line.Length - 3] == 'c' &&
+                        line[line.Length - 2] == 'h' &&
+                        line[line.Length - 1] == '>')
+                    {
+                        // Stop on prompt
+                        break;
+                    }
                 }
+            }
+            catch (TimeoutException)
+            {
+                throw new InvalidOperationException(
+                    "Timeout waiting for device response. The device may be unresponsive.");
             }
 
             return result.ToString();
@@ -245,8 +256,13 @@ namespace NANOVNACSharp
                     continue;
                 foreach (string hex in trimmed.Split(' '))
                 {
-                    if (!string.IsNullOrEmpty(hex))
-                        values.Add((short)Convert.ToInt32(hex, 16));
+                    short parsed;
+                    if (!string.IsNullOrEmpty(hex) &&
+                        short.TryParse(hex, System.Globalization.NumberStyles.HexNumber,
+                            System.Globalization.CultureInfo.InvariantCulture, out parsed))
+                    {
+                        values.Add(parsed);
+                    }
                 }
             }
             return values.ToArray();
@@ -275,8 +291,13 @@ namespace NANOVNACSharp
                     continue;
                 foreach (string hex in trimmed.Split(' '))
                 {
-                    if (!string.IsNullOrEmpty(hex))
-                        all.Add((short)Convert.ToInt32(hex, 16));
+                    short parsed;
+                    if (!string.IsNullOrEmpty(hex) &&
+                        short.TryParse(hex, System.Globalization.NumberStyles.HexNumber,
+                            System.Globalization.CultureInfo.InvariantCulture, out parsed))
+                    {
+                        all.Add(parsed);
+                    }
                 }
             }
 
@@ -335,9 +356,19 @@ namespace NANOVNACSharp
 
             SendCommand("gamma\r");
             string data = _serial.ReadLine();
-            string[] parts = data.Trim().Split(' ');
-            double real = double.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
-            double imag = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+            string[] parts = data.Trim().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+            double real, imag;
+            if (parts.Length < 2 ||
+                !double.TryParse(parts[0], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out real) ||
+                !double.TryParse(parts[1], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out imag))
+            {
+                throw new InvalidOperationException(
+                    "Failed to parse gamma response from device.");
+            }
+
             return new Complex(real, imag) / Constants.REF_LEVEL;
         }
 
@@ -539,6 +570,7 @@ namespace NANOVNACSharp
         /// <param name="filePath">Output image file path (format inferred from extension).</param>
         public void CaptureToFile(string filePath)
         {
+            filePath = OutputFormatters.ValidateFilePath(filePath);
             using (Bitmap bmp = Capture())
             {
                 bmp.Save(filePath);
@@ -647,13 +679,39 @@ namespace NANOVNACSharp
             return Tuple.Create(timeAxis, magnitude);
         }
 
+        private static readonly string[] AllowedCommands = new[]
+        {
+            "version", "info", "help",
+            "sweep", "scan", "data", "frequencies",
+            "resume", "pause", "reset",
+            "capture", "refresh",
+            "cal", "save", "recall",
+            "marker", "trace", "port",
+            "gain", "power", "offset",
+            "freq", "dump", "gamma",
+            "threshold", "color", "transform",
+            "usart_cfg", "vbat"
+        };
+
         /// <summary>
         /// Send a raw command and return the response text.
+        /// The command keyword is validated against an allowlist of known
+        /// NanoVNA commands before transmission.
         /// </summary>
         /// <param name="command">Command string (without trailing '\r').</param>
         /// <returns>Response text from the device.</returns>
+        /// <exception cref="ArgumentException">Thrown when the command is not in the allowlist.</exception>
         public string SendRawCommand(string command)
         {
+            if (string.IsNullOrEmpty(command))
+                throw new ArgumentException("Command cannot be null or empty.", "command");
+
+            string keyword = command.Trim().Split(' ')[0].ToLowerInvariant();
+            if (!AllowedCommands.Contains(keyword))
+                throw new ArgumentException(
+                    string.Format("Command '{0}' is not in the allowed command list.", keyword),
+                    "command");
+
             SendCommand(command + "\r");
             return FetchData();
         }

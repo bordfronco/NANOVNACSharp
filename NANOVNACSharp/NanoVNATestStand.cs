@@ -44,7 +44,7 @@ namespace NANOVNACSharp
             {
                 return PortDetector.GetPort();
             }
-            catch
+            catch (InvalidOperationException)
             {
                 return "DEVICE_NOT_FOUND";
             }
@@ -60,7 +60,7 @@ namespace NANOVNACSharp
             {
                 return PortDetector.GetAllPorts();
             }
-            catch
+            catch (InvalidOperationException)
             {
                 return new string[0];
             }
@@ -108,7 +108,7 @@ namespace NANOVNACSharp
                 }
                 if (lastEx != null)
                 {
-                    LastError = "DEVICE_NOT_FOUND: " + lastEx.Message;
+                    LastError = "DEVICE_NOT_FOUND";
                     return;
                 }
 
@@ -126,7 +126,7 @@ namespace NANOVNACSharp
                     System.Threading.Thread.Sleep(500);
                     _nv.Data(0);
                 }
-                catch { /* ignore warm-up errors */ }
+                catch (Exception) { /* warm-up errors are non-fatal */ }
             }
         }
 
@@ -141,11 +141,15 @@ namespace NANOVNACSharp
             try
             {
                 Connect(comPort);
-                return "OK";
+                return string.IsNullOrEmpty(LastError) ? "OK" : LastError;
             }
-            catch (Exception ex)
+            catch (InvalidOperationException)
             {
-                return ex.GetType().Name + ": " + ex.Message;
+                return "CONNECTION_FAILED";
+            }
+            catch (Exception)
+            {
+                return "CONNECTION_FAILED";
             }
         }
 
@@ -158,7 +162,6 @@ namespace NANOVNACSharp
             {
                 if (_nv != null)
                 {
-                    _nv.Close();
                     _nv.Dispose();
                     _nv = null;
                 }
@@ -512,6 +515,13 @@ namespace NANOVNACSharp
         /// </summary>
         private Complex[] AcquireData(double startHz, double stopHz, int points, int port)
         {
+            if (points < 1)
+                throw new ArgumentException("Points must be at least 1.", "points");
+            if (startHz >= stopHz)
+                throw new ArgumentException("Start frequency must be less than stop frequency.", "startHz");
+            if (port != 0 && port != 1)
+                throw new ArgumentException("Port must be 0 (S11) or 1 (S21).", "port");
+
             _nv.SetFrequencies(startHz, stopHz, points);
 
             Complex[] sData;
@@ -549,6 +559,9 @@ namespace NANOVNACSharp
         /// </summary>
         private MeasurementData BuildMeasurementData(Complex[] sData, int port, double z0)
         {
+            if (z0 <= 0)
+                throw new ArgumentException("Reference impedance (z0) must be greater than zero.", "z0");
+
             Complex[] impedance = MathHelpers.ComputeImpedance(sData, z0);
             double[] vswr = MathHelpers.ComputeVSWR(sData);
             double[] magDb = MathHelpers.LogMagnitude(sData);
