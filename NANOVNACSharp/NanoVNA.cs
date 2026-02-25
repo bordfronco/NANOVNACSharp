@@ -84,11 +84,15 @@ namespace NANOVNACSharp
                     try { _serial.DiscardOutBuffer(); } catch (Exception) { }
                     // Close the underlying stream first to force the OS handle
                     // to release immediately. SerialPort.Close() alone may leave
-                    // the handle open due to an internal background read thread.
+                    // the handle open due to an internal background read thread
+                    // (known .NET Framework 4.x issue).
                     try { _serial.BaseStream.Close(); } catch (Exception) { }
-                    _serial.Close();
+                    // After BaseStream.Close(), SerialPort.Close() may throw
+                    // ObjectDisposedException because the internal _isOpen flag
+                    // is stale. Catch it so Dispose() and null-out always run.
+                    try { _serial.Close(); } catch (Exception) { }
                 }
-                _serial.Dispose();
+                try { _serial.Dispose(); } catch (Exception) { }
                 _serial = null;
                 // Allow USB driver time to fully release the port
                 System.Threading.Thread.Sleep(1000);
