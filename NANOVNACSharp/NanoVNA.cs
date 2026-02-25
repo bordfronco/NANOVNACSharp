@@ -82,39 +82,73 @@ namespace NANOVNACSharp
                 {
                     try { _serial.DiscardInBuffer(); } catch (Exception) { }
                     try { _serial.DiscardOutBuffer(); } catch (Exception) { }
-                    // .NET Framework 4.x bug: SerialStream has a background
-                    // EventLoopRunner thread blocked on WaitForCommEvent().
-                    // SerialPort.Close() waits for that thread to exit, but the
-                    // thread never unblocks unless the underlying SafeFileHandle
-                    // is closed first. Close it directly via reflection so that
-                    // WaitForCommEvent() returns with ERROR_INVALID_HANDLE,
-                    // allowing the thread to exit and the OS handle to release.
+                    // .NET Framework 4.x: SerialStream runs a background
+                    // EventLoopRunner thread blocked on WaitCommEvent() via
+                    // overlapped I/O. SerialPort.Close() waits for this thread
+                    // to exit, but two problems exist:
+                    //
+                    // 1. If we close the SafeFileHandle directly before the
+                    //    thread exits, GetOverlappedResult()'s DangerousAddRef
+                    //    throws ObjectDisposedException on the background thread
+                    //    — a fatal unhandled exception in .NET 4.x that
+                    //    terminates the host process.
+                    //
+                    // 2. SerialPort.Close() itself may block indefinitely
+                    //    waiting on eventLoopEndedSignal if WaitCommEvent never
+                    //    returns.
+                    //
+                    // Fix: signal the EventLoopRunner to exit cleanly via
+                    // reflection (set doCleanup=true, set waitCommEventWaitHandle)
+                    // and wait for eventLoopEndedSignal. The thread then exits
+                    // its loop on the next iteration without touching the handle.
+                    // Only after the thread has confirmed exit do we call Close().
                     try
                     {
+                        var flags = System.Reflection.BindingFlags.NonPublic |
+                                    System.Reflection.BindingFlags.Instance;
+
+                        // SerialPort → internalSerialStream (SerialStream)
                         var streamField = typeof(SerialPort).GetField(
-                            "internalSerialStream",
-                            System.Reflection.BindingFlags.NonPublic |
-                            System.Reflection.BindingFlags.Instance);
-                        object internalStream = streamField?.GetValue(_serial);
-                        if (internalStream != null)
+                            "internalSerialStream", flags);
+                        object ss = streamField?.GetValue(_serial);
+
+                        if (ss != null)
                         {
-                            var handleField = internalStream.GetType().GetField(
-                                "_handle",
-                                System.Reflection.BindingFlags.NonPublic |
-                                System.Reflection.BindingFlags.Instance);
-                            var safeHandle = handleField?.GetValue(internalStream)
-                                as System.Runtime.InteropServices.SafeHandle;
-                            if (safeHandle != null && !safeHandle.IsClosed)
-                                safeHandle.Close();
+                            // SerialStream → eventRunner (EventLoopRunner)
+                            var runnerField = ss.GetType().GetField(
+                                "eventRunner", flags);
+                            object runner = runnerField?.GetValue(ss);
+
+                            if (runner != null)
+                            {
+                                Type rt = runner.GetType();
+
+                                // Tell the loop to exit on its next iteration
+                                rt.GetField("doCleanup", flags)
+                                  ?.SetValue(runner, true);
+
+                                // Wake the thread if it is blocked in WaitAny
+                                var wh = rt.GetField(
+                                             "waitCommEventWaitHandle", flags)
+                                           ?.GetValue(runner)
+                                           as System.Threading.EventWaitHandle;
+                                wh?.Set();
+
+                                // Wait for the thread to fully exit (2 s timeout)
+                                var endSig = rt.GetField(
+                                                 "eventLoopEndedSignal", flags)
+                                               ?.GetValue(runner)
+                                               as System.Threading.WaitHandle;
+                                endSig?.WaitOne(2000);
+                            }
                         }
                     }
                     catch (Exception) { }
-
-                    // BaseStream.Close() and SerialPort.Close() can now complete
-                    // without deadlocking since the EventLoopRunner has exited.
-                    try { _serial.BaseStream.Close(); } catch (Exception) { }
-                    try { _serial.Close(); } catch (Exception) { }
                 }
+
+                // EventLoopRunner has exited; Close() can now release the OS
+                // handle without deadlocking or triggering an unhandled exception.
+                try { _serial.Close(); } catch (Exception) { }
                 try { _serial.Dispose(); } catch (Exception) { }
                 _serial = null;
             }
