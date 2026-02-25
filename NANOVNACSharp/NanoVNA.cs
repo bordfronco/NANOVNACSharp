@@ -82,20 +82,41 @@ namespace NANOVNACSharp
                 {
                     try { _serial.DiscardInBuffer(); } catch (Exception) { }
                     try { _serial.DiscardOutBuffer(); } catch (Exception) { }
-                    // Close the underlying stream first to force the OS handle
-                    // to release immediately. SerialPort.Close() alone may leave
-                    // the handle open due to an internal background read thread
-                    // (known .NET Framework 4.x issue).
+                    // .NET Framework 4.x bug: SerialStream has a background
+                    // EventLoopRunner thread blocked on WaitForCommEvent().
+                    // SerialPort.Close() waits for that thread to exit, but the
+                    // thread never unblocks unless the underlying SafeFileHandle
+                    // is closed first. Close it directly via reflection so that
+                    // WaitForCommEvent() returns with ERROR_INVALID_HANDLE,
+                    // allowing the thread to exit and the OS handle to release.
+                    try
+                    {
+                        var streamField = typeof(SerialPort).GetField(
+                            "internalSerialStream",
+                            System.Reflection.BindingFlags.NonPublic |
+                            System.Reflection.BindingFlags.Instance);
+                        object internalStream = streamField?.GetValue(_serial);
+                        if (internalStream != null)
+                        {
+                            var handleField = internalStream.GetType().GetField(
+                                "_handle",
+                                System.Reflection.BindingFlags.NonPublic |
+                                System.Reflection.BindingFlags.Instance);
+                            var safeHandle = handleField?.GetValue(internalStream)
+                                as System.Runtime.InteropServices.SafeHandle;
+                            if (safeHandle != null && !safeHandle.IsClosed)
+                                safeHandle.Close();
+                        }
+                    }
+                    catch (Exception) { }
+
+                    // BaseStream.Close() and SerialPort.Close() can now complete
+                    // without deadlocking since the EventLoopRunner has exited.
                     try { _serial.BaseStream.Close(); } catch (Exception) { }
-                    // After BaseStream.Close(), SerialPort.Close() may throw
-                    // ObjectDisposedException because the internal _isOpen flag
-                    // is stale. Catch it so Dispose() and null-out always run.
                     try { _serial.Close(); } catch (Exception) { }
                 }
                 try { _serial.Dispose(); } catch (Exception) { }
                 _serial = null;
-                // Allow USB driver time to fully release the port
-                System.Threading.Thread.Sleep(1000);
             }
         }
 
