@@ -82,6 +82,10 @@ namespace NANOVNACSharp
                 {
                     try { _serial.DiscardInBuffer(); } catch (Exception) { }
                     try { _serial.DiscardOutBuffer(); } catch (Exception) { }
+                    // Close the underlying stream first to force the OS handle
+                    // to release immediately. SerialPort.Close() alone may leave
+                    // the handle open due to an internal background read thread.
+                    try { _serial.BaseStream.Close(); } catch (Exception) { }
                     _serial.Close();
                 }
                 _serial.Dispose();
