@@ -535,9 +535,22 @@ namespace NANOVNACSharp
             else
             {
                 _nv.SetSweep(startHz, stopHz);
-                // Wait for device to complete sweep after reconfiguring
-                System.Threading.Thread.Sleep(200);
+
+                // Wait for the device to begin sweeping with the new config.
+                System.Threading.Thread.Sleep(500);
                 _nv.FetchFrequencies();
+
+                // Flush read: discard stale data that may remain from the
+                // warm-up sweep range or a previous measurement. The device
+                // returns whatever is in its buffer, even if it belongs to
+                // an old sweep configuration.
+                _nv.Data(port);
+
+                // Wait for a full sweep cycle to complete with the new
+                // start/stop so the buffer contains fresh data.
+                System.Threading.Thread.Sleep(500);
+
+                // Second read: guaranteed fresh data from the configured range.
                 sData = _nv.Data(port);
 
                 // Retry once if device returned incomplete data (happens on
